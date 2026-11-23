@@ -6,11 +6,13 @@ from datetime import datetime
 from rich.console import Console
 from rich.prompt import Prompt, IntPrompt, Confirm
 
-from config import SCAN_PROFILES
+from config import SCAN_PROFILES, TARGETS_FILE
 from utils.validator import (
     ValidationError, validate_target, validate_targets,
     validate_port_spec, validate_nse_script, validate_scan_profile,
 )
+
+from utils.network_utils import load_targets_from_file
 
 console = Console()
 
@@ -137,3 +139,40 @@ class InputHandler:
     @staticmethod
     def ask_scan_id() -> int:
         return InputHandler.ask_int("Scan ID", lo=1)
+    @staticmethod
+    def ask_targets_or_file() -> list[str]:
+        """Cho user chọn nguồn target: nhập tay hoặc nạp từ targets.txt."""
+        console.print("[bold]Nguồn target:[/bold]")
+        console.print("  [bold]1.[/bold] Nhập tay")
+        console.print(f"  [bold]2.[/bold] Nạp từ file [cyan]{TARGETS_FILE}[/cyan]")
+        console.print("  [bold]3.[/bold] Cả hai (file trước, rồi nhập thêm)")
+
+        choice = InputHandler.ask("Chọn [1-3]", default="1").strip()
+
+        if choice == "1":
+            return InputHandler.ask_targets()
+
+        if choice == "2":
+            targets = load_targets_from_file(TARGETS_FILE)
+            if not targets:
+                console.print("[yellow]File rỗng hoặc chưa có. "
+                              "Chạy Host Discovery trước để tạo file.[/yellow]")
+                return []
+            console.print(f"[green]Đã nạp {len(targets)} target từ file.[/green]")
+            table_targets = targets[:10]
+            for t in table_targets:
+                console.print(f"  [dim]- {t}[/dim]")
+            if len(targets) > 10:
+                console.print(f"  [dim]... (+{len(targets) - 10} nữa)[/dim]")
+            return validate_targets(targets)
+
+        if choice == "3":
+            from_file = load_targets_from_file(TARGETS_FILE) or []
+            manual = InputHandler.ask_targets()
+            merged = list(dict.fromkeys(from_file + manual))  # giữ thứ tự, bỏ trùng
+            console.print(f"[green]Tổng {len(merged)} target "
+                          f"({len(from_file)} từ file + {len(manual)} nhập tay).[/green]")
+            return validate_targets(merged)
+
+        console.print("[red]Lựa chọn không hợp lệ, dùng nhập tay.[/red]")
+        return InputHandler.ask_targets()

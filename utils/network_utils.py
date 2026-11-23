@@ -89,3 +89,32 @@ def format_ports(ports: list[int], limit: int = 20) -> str:
     if len(ports) > limit:
         shown += f" ... (+{len(ports) - limit} more)"
     return shown
+
+# utils/network_utils.py (append)
+
+def load_targets_from_file(path) -> list[str]:
+    """Đọc file targets.txt, trả về list IP/hostname (bỏ comment, bỏ trùng).
+
+    Định dạng file do HostDiscovery ghi:
+        192.168.1.10 (router.local) aa:bb:... Vendor
+        192.168.1.20
+    Chỉ lấy token đầu tiên mỗi dòng.
+    """
+    from pathlib import Path
+    p = Path(path)
+    if not p.exists():
+        log.warning("targets file không tồn tại: %s", p)
+        return []
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in p.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        token = line.split()[0]     # IP hoặc hostname
+        if token and token not in seen:
+            seen.add(token)
+            out.append(token)
+    log.info("Loaded %d target(s) from %s", len(out), p)
+    return out

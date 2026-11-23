@@ -104,7 +104,7 @@ class MainMenu:
     # 2. Port Scanning
     # ============================================================
     def menu_port_scanning(self):
-        targets = ih.ask_targets()
+        targets = ih.ask_targets_or_file()
         profile = ih.ask_scan_profile()
         custom_args = ""
         custom_ports = ""
