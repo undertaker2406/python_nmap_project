@@ -30,6 +30,9 @@ class _DBManager:
         self.SessionLocal = sessionmaker(
             bind=self.engine, expire_on_commit=False, future=True,
         )
+        # ✅ Tự động tạo bảng nếu chưa có — idempotent, không xoá data cũ
+        Base.metadata.create_all(self.engine)
+        log.info("Database ready at %s", DB_URL)
 
     def init_db(self):
         Base.metadata.create_all(self.engine)
