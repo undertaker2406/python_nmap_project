@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from database import db_manager
 from database.models import Target, Scan, Port
@@ -22,37 +22,31 @@ class ScanAnalyzer:
     # 1. Thống kê tổng quan
     # ------------------------------------------------------------
     def summarize(self, target_id: int | None = None) -> dict:
-        """
-        Thống kê toàn DB (hoặc 1 target nếu truyền target_id).
-
-        Return:
-            {
-              "scope": {"target_id": ...},
-              "targets":  {"total": N, "by_status": {...}},
-              "scans":    {"total": N, "by_type": {...}, "by_status": {...}},
-              "ports":    {
-                  "total_open": N,
-                  "by_protocol": {"tcp": N, "udp": N},
-                  "top_ports":    [{"port": 22, "count": 5}, ...],
-                  "top_services": [{"service": "ssh", "count": 5}, ...]
-              },
-              "os_distribution": {"Linux": N, "Windows": N, ...}
-            }
-        """
         with db_manager.session() as s:
+            # 1. Lấy targets
             t_q = select(Target)
             if target_id is not None:
                 t_q = t_q.where(Target.id == target_id)
             targets = list(s.execute(t_q).scalars())
 
+            # 2. Lấy scans
             sc_q = select(Scan)
             if target_id is not None:
                 sc_q = sc_q.where(Scan.target_id == target_id)
             scans = list(s.execute(sc_q).scalars())
 
-            p_q = select(Port)
+            # 3. Lấy ports (CHỈ LẤY CỦA LẦN QUÉT COMPLETED MỚI NHẤT)
+            # subq: Tìm scan_id lớn nhất (mới nhất) của từng target
+            subq = (
+                select(func.max(Scan.id))
+                .where(Scan.status == 'completed') # Chỉ tính scan thành công
+                .group_by(Scan.target_id)
+            )
+            
+            p_q = select(Port).where(Port.scan_id.in_(subq))
             if target_id is not None:
                 p_q = p_q.where(Port.target_id == target_id)
+                
             ports = list(s.execute(p_q).scalars())
 
         # ---- targets ----

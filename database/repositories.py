@@ -33,9 +33,9 @@ class TargetRepository:
         with db_manager.session() as s:
             return list(s.execute(select(Target)).scalars())
 
-    def update_os(self, ip: str, os_family, os_match, accuracy) -> None:
-        self.upsert(ip, os_family=os_family, os_match=os_match, os_accuracy=accuracy)
-        log.info("OS updated for %s -> %s (%s%%)", ip, os_family, accuracy)
+    def update_os(self, ip: str, os_family, os_match, os_accuracy) -> None:
+        self.upsert(ip, os_family=os_family, os_match=os_match, os_accuracy=os_accuracy)
+        log.info("OS updated for %s -> %s (%s%%)", ip, os_family, os_accuracy)
 
     def count(self) -> int:
         with db_manager.session() as s:

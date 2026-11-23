@@ -1,6 +1,9 @@
 """Menu chính — wrapper tương tác quanh các module đã có."""
 from __future__ import annotations
-
+import sys
+import os
+import time
+import subprocess
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -10,8 +13,46 @@ from modules import HostDiscovery, PortScanner, Traceroute, NSERunner
 from analysis import ScanAnalyzer, ScanHistory, ReportGenerator
 from interface.input_handler import InputHandler
 
+# === Lưu termios "tốt" ngay lúc import (trước khi bất kỳ nmap nào chạy) ===
+_SAVED_TTY = None
+try:
+    import termios
+    if sys.stdin.isatty():
+        _SAVED_TTY = termios.tcgetattr(sys.stdin.fileno())
+except Exception:
+    pass
+
+
+def _reset_console() -> None:
+    """Khôi phục terminal về đúng trạng thái ban đầu — fix mất phím/echo raw."""
+    # 1. Kill nmap còn sót (nếu có) — tránh nó giữ tty
+    try:
+        subprocess.run(["pkill", "-TERM", "nmap"],
+                       stderr=subprocess.DEVNULL, timeout=2)
+    except Exception:
+        pass
+    time.sleep(0.05)
+
+    # 2. Restore termios CHÍNH XÁC từ snapshot
+    if _SAVED_TTY is not None:
+        try:
+            import termios
+            termios.tcsetattr(sys.stdin.fileno(),
+                              termios.TCSAFLUSH, _SAVED_TTY)
+            return          # thành công → không cần fallback
+        except Exception:
+            pass
+
+    # 3. Fallback: stty sane (chỉ khi không có snapshot)
+    try:
+        subprocess.run(["stty", "sane"], stdin=sys.stdin,
+                       stderr=subprocess.DEVNULL, timeout=2)
+    except Exception:
+        pass
+
 console = Console()
 ih = InputHandler
+
 
 
 class MainMenu:
@@ -29,6 +70,7 @@ class MainMenu:
     # ============================================================
     def run(self) -> None:
         while True:
+            _reset_console()  # fix terminal nếu bị nmap giữ tty
             console.clear()
             console.print(self._banner())
             choice = console.input("[bold cyan]Chọn [0-8]: [/bold cyan]").strip()
